@@ -103,18 +103,23 @@ module hwpe_stream_fifo_passthrough #(
     .clk ( clk_i )
   );
 
-  logic passthrough;
-  assign passthrough = push_i.valid & flags_o.empty;
+  logic passthrough_rd;
+  logic passthrough_wr;
 
-  assign push.valid   = push_i.valid & ~passthrough;
+  // if we have a valid input & an empty FIFO, we propagate the data to the read (pop) port
+  assign passthrough_rd = push_i.valid & flags_o.empty;
+  // if we also have a ready, we avoid writing in the FIFO at all!
+  assign passthrough_wr = push_i.valid & pop_o.ready & flags_o.empty;
+
+  assign push.valid   = push_i.valid & ~passthrough_wr;
   assign push.data    = push_i.data;
   assign push.strb    = push_i.strb;
-  assign push_i.ready = passthrough ? pop_o.ready  : push.ready;
+  assign push_i.ready = passthrough_wr ? pop_o.ready  : push.ready;
 
-  assign pop_o.valid  = passthrough ? push_i.valid : pop.valid;
-  assign pop_o.data   = passthrough ? push_i.data  : pop.data;
-  assign pop_o.strb   = passthrough ? push_i.strb  : pop.strb;
-  assign pop.ready    = pop_o.ready & ~passthrough;
+  assign pop_o.valid  = passthrough_rd ? push_i.valid : pop.valid;
+  assign pop_o.data   = passthrough_rd ? push_i.data  : pop.data;
+  assign pop_o.strb   = passthrough_rd ? push_i.strb  : pop.strb;
+  assign pop.ready    = pop_o.ready & ~passthrough_rd;
 
   hwpe_stream_fifo #(
     .DATA_WIDTH           ( DATA_WIDTH           ),
